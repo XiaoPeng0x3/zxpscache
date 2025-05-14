@@ -16,11 +16,15 @@ type baseCache struct {
 
 	// for O(1) Get
 	cache map[string]*list.Element
+
+	// 回调函数
+	OnEvicted func(key string, value Value)
 }
 
 // Real data that stored in cache
 type entry struct {
 	key   string
+	visit int
 	value Value
 }
 
@@ -28,11 +32,12 @@ type Value interface{
 	Len() int
 }
 
-func newBaseCache(maxBytes int64) *baseCache {
+func newBaseCache(maxBytes int64, OnEvicted func(string, Value)) *baseCache {
 	return &baseCache{
 		maxBytes: maxBytes,
 		ll: list.New(),
 		cache: make(map[string]*list.Element),
+		OnEvicted: OnEvicted,
 	}
 }
 
@@ -68,6 +73,9 @@ func (bc *baseCache) RemoveOldest() {
 
 		// resize
 		bc.usedBytes -= int64(len(kv.key) + kv.value.Len())
+		if bc.OnEvicted != nil {
+			bc.OnEvicted(kv.key, kv.value)
+		}
 	}
 }
 
@@ -100,4 +108,24 @@ func (bc *baseCache) Add(key string, value Value) {
 
 func (bc *baseCache) Len() int {
 	return bc.ll.Len()
+}
+
+func (bc *baseCache) removeElement(ele *list.Element) {
+	// from double-link-list
+	bc.ll.Remove(ele)
+	// from map
+	kv := ele.Value.(*entry)
+	delete(bc.cache, kv.key)
+	// resize
+	bc.usedBytes -= int64(len(kv.key) + kv.value.Len())
+}
+
+func (bc *baseCache) Remove(key string) {
+	if ele, ok := bc.cache[key]; ok {
+		bc.removeElement(ele)
+		kv := ele.Value.(*entry)
+		if bc.OnEvicted != nil {
+			bc.OnEvicted(kv.key, kv.value)
+		}
+	}
 }
