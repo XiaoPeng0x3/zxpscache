@@ -93,4 +93,10 @@ func (c *Cache) RemoveOldest() {
 	c.cache.RemoveOldest()
 }
 
+// remove expire
+func (c *Cache) CleanExpired() {
+	c.history.cleanExpired()
+	c.cache.cleanExpired()
+}
+
 

@@ -76,3 +76,24 @@ func TestCacheExpiration(t *testing.T) {
 		t.Errorf("expected 'foo' to be evicted, got %v", evictedKeys)
 	}
 }
+
+func TestCleanExpired(t *testing.T) {
+	var evictedKeys []string
+	cache := newBaseCache(100, func(key string, value Value) {
+		evictedKeys = append(evictedKeys, key)
+	})
+
+	// 添加一个10s过期的key, 在空间充足的情况下，即使cache过期，也不会发生清除
+	cache.AddWithExpire("zxp", String("dsb"), 5 * time.Second)
+	// sleep, 测试失效
+	// time.Sleep(6 * time.Second)
+	if val, ok := cache.Get("zxp"); !ok || val.(String) != "dsb" {
+		t.Fatalf("val should be dsb but be %v", val)
+	}
+	// 测试删除缓存
+	time.Sleep(6 * time.Second)
+	cache.cleanExpired()
+	if cache.usedBytes != 0 {
+		t.Fatal("expire cache should be evicted but not!")
+	}
+}

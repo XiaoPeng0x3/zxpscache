@@ -169,3 +169,14 @@ func (bc *baseCache) Remove(key string) {
 		}
 	}
 }
+
+// remove expire
+func (bc *baseCache)  cleanExpired() {
+	now := time.Now()
+	for key, exp := range bc.expires {
+		if now.After(exp) { // remove
+			log.Println("basecache.go: Auto remove expired cache!")
+			bc.Remove(key)
+		}
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"strconv"
 	"sync"
+	"time"
 )
 
 func TestCacheAddAndGet(t *testing.T) {
@@ -109,5 +110,34 @@ func TestCacheConcurrency(t *testing.T) {
 			t.Errorf("key %s returned empty value", key)
 		}
 	}
+}
+
+// 后台清理测试（需要配合 lru.Cache 中 CleanExpired 实现）
+func TestEvictionLoop(t *testing.T) {
+	c := &cache{
+		maxBytes: 2 << 15,
+		k:        2,
+	}
+
+	c.add("key1", ByteView{b: []byte("123")})
+	c.add("key2", ByteView{b: []byte("456")})
+
+	if val, ok := c.get("key1"); !ok || string(val.ByteSlice()) != "123" {
+		t.Fatalf("val should be 123 but be %v", val)
+	}
+
+	c.startEvictionLoop(1000 * time.Millisecond)
+
+	// 统计是否删除
+	time.Sleep(3 * time.Second)
+	if _, ok := c.get("key1"); ok {
+		t.Fatalf("Cache expires")
+	}
+	if _, ok := c.get("key2"); ok {
+		t.Fatalf("Cache expires")
+	}
+
+	// 没有 panic 表示后台清理逻辑没有死锁
+	t.Log("eviction loop ran safely")
 }
 
