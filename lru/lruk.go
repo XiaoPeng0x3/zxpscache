@@ -16,7 +16,7 @@ type Cache struct {
 	k int
 }
 
-func newCache(k int, maxBytes int, OnEvicted func(string, Value)) *Cache{
+func NewCache(k int, maxBytes int, OnEvicted func(string, Value)) *Cache{
 	history := newBaseCache(int64(maxBytes), OnEvicted)
 	cache := newBaseCache(int64(maxBytes), OnEvicted)
 	return &Cache{

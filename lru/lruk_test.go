@@ -12,7 +12,7 @@ func TestLRUKBasic(t *testing.T) {
 	maxBytes := 1024
 	evicted := make(map[string]string)
 
-	lru := newCache(k, maxBytes, func(key string, value Value) {
+	lru := NewCache(k, maxBytes, func(key string, value Value) {
 		evicted[key] = string(value.(String))
 	})
 
@@ -61,7 +61,7 @@ func TestLRUKAdd(t *testing.T) {
 	evictedKeys := make([]string, 0)
 
 	// k=2, maxBytes=100
-	c := newCache(2, 100, func(key string, value Value) {
+	c := NewCache(2, 100, func(key string, value Value) {
 		evictedKeys = append(evictedKeys, key)
 	})
 
@@ -91,7 +91,7 @@ func TestLRUKAdd(t *testing.T) {
 func TestLRUKEviction(t *testing.T) {
 	evicted := make([]string, 0)
 
-	c := newCache(2, 50, func(key string, value Value) {
+	c := NewCache(2, 50, func(key string, value Value) {
 		evicted = append(evicted, key)
 	})
 
@@ -111,7 +111,7 @@ func TestLRUKEviction(t *testing.T) {
 }
 
 func TestLRUKExpire(t *testing.T) {
-	c := newCache(2, 100, nil)
+	c := NewCache(2, 100, nil)
 	c.history.expireTime = 500 * time.Millisecond
 	c.cache.expireTime = 500 * time.Millisecond
 
