@@ -3,6 +3,7 @@ package lru
 import (
 	"log"
 	"testing"
+	"time"
 )
 
 type String string
@@ -38,5 +39,40 @@ func TestRemoveoldest(t *testing.T) {
 
 	if _, ok := lru.Get("key1"); ok || lru.Len() != 2 {
 		t.Fatalf("Removeoldest key1 failed")
+	}
+}
+
+func TestCacheExpiration(t *testing.T) {
+	var evictedKeys []string
+
+	cache := newBaseCache(100, func(key string, value Value) {
+		evictedKeys = append(evictedKeys, key)
+	})
+
+	// 添加一个1秒后过期的key
+	cache.AddWithExpire("foo", String("bar"), time.Second)
+
+	// Never expire
+	cache.AddWithExpire("zxp", String("hahah"), 0)
+
+	// 立即应命中
+	if val, ok := cache.Get("foo"); !ok || string(val.(String)) != "bar" {
+		t.Errorf("expected to get value 'bar', got %v, hit=%v", val, ok)
+	}
+
+	// 等待1.5秒后应 miss
+	time.Sleep(1500 * time.Millisecond)
+
+	if _, ok := cache.Get("foo"); ok {
+		t.Errorf("expected cache miss after expiration, but got hit")
+	}
+	time.Sleep(15000 * time.Millisecond)
+	if val, ok := cache.Get("zxp"); !ok || string(val.(String)) != "hahah" {
+		t.Errorf("expected to get value 'hahah', got %v, hit=%v", val, ok)	
+	}
+
+	// 验证是否回调了 OnEvicted
+	if len(evictedKeys) != 1 || evictedKeys[0] != "foo" {
+		t.Errorf("expected 'foo' to be evicted, got %v", evictedKeys)
 	}
 }

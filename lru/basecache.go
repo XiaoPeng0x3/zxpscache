@@ -3,6 +3,7 @@ package lru
 import (
 	"container/list"
 	"log"
+	"time"
 )
 type baseCache struct {
 	// Allowed MaxBytes
@@ -16,6 +17,12 @@ type baseCache struct {
 
 	// for O(1) Get
 	cache map[string]*list.Element
+
+	// expire time map
+	expires map[string] time.Time
+
+	// default expire time
+	expireTime time.Duration
 
 	// 回调函数
 	OnEvicted func(key string, value Value)
@@ -37,8 +44,15 @@ func newBaseCache(maxBytes int64, OnEvicted func(string, Value)) *baseCache {
 		maxBytes: maxBytes,
 		ll: list.New(),
 		cache: make(map[string]*list.Element),
+		expires: make(map[string]time.Time),
+		expireTime: 2000 * time.Millisecond, // 2s
 		OnEvicted: OnEvicted,
 	}
+}
+
+// set expire time
+func (bc *baseCache) SetExpireTime(expireTime time.Duration) {
+	bc.expireTime = expireTime
 }
 
 
@@ -47,6 +61,18 @@ func (bc *baseCache) Get(key string) (value Value, ok bool) {
 
 	if (key == "") {
 		log.Println("Get: key == nil")
+	}
+
+	// Is it expire?
+	if bc.expires != nil {
+		if expire, ok := bc.expires[key]; ok && !expire.IsZero(){
+			if time.Now().After(expire) {
+				// remove
+				log.Println("Expired!")
+				bc.Remove(key)
+				return nil, false
+			}
+		}
 	}
 
 	// Get from cache
@@ -79,11 +105,19 @@ func (bc *baseCache) RemoveOldest() {
 	}
 }
 
-func (bc *baseCache) Add(key string, value Value) {
+func (bc *baseCache) AddWithExpire(key string, value Value, expire time.Duration) {
 	if bc.cache == nil {
 		bc.cache = make(map[string]*list.Element)
 	}
+	if bc.expires == nil {
+		bc.expires = make(map[string]time.Time)
+	}
+	// expire
+	if expire > 0 {
+		bc.expires[key] = time.Now().Add(expire)
+	}
 	if ele, ok := bc.cache[key]; ok {
+
 		// update 
 		// from double-link-list
 		bc.ll.MoveToFront(ele)
@@ -106,6 +140,10 @@ func (bc *baseCache) Add(key string, value Value) {
 	}
 }
 
+func (bc *baseCache) Add(key string, value Value) {
+	bc.AddWithExpire(key, value, bc.expireTime)
+}
+
 func (bc *baseCache) Len() int {
 	return bc.ll.Len()
 }
@@ -116,6 +154,8 @@ func (bc *baseCache) removeElement(ele *list.Element) {
 	// from map
 	kv := ele.Value.(*entry)
 	delete(bc.cache, kv.key)
+	// delete from expires
+	delete(bc.expires, kv.key)
 	// resize
 	bc.usedBytes -= int64(len(kv.key) + kv.value.Len())
 }
