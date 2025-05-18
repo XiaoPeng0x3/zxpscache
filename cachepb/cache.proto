@@ -1,0 +1,26 @@
+syntax = "proto3";
+package cachepb;
+option go_package = "./";
+
+// request
+message Request {
+    string group = 1;
+    string key = 2;
+}
+
+// response
+message Response {
+    bytes value = 1;
+}
+
+// 
+message ResponseForDelete {
+    bool value = 1;
+}
+
+// service
+service CacheService {
+    rpc Get(Request) returns (Response);
+    rpc Set(Request) returns (Response);
+    rpc Delete(Request) returns (ResponseForDelete);
+}
