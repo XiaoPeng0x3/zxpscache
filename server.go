@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	pb "my_groupcache/cachepb"
+	"my_groupcache/consistenthash"
 	"net"
 	"sync"
 
@@ -21,7 +22,14 @@ type GRPCPool struct {
 	svcName string // 服务名称
 	grpcServer *grpc.Server
 	mu sync.Mutex
+	peers *consistenthash.Map
+	client map[string] *client
 }
+
+const (
+	defaultAddr     = "127.0.0.1:8090"
+	defaultReplicas = 50
+)
 
 // ServerOptions 服务器配置选项
 type ServerOptions struct {
@@ -82,7 +90,7 @@ func (p *GRPCPool) Get(ctx context.Context, req *pb.Request) (response *pb.Respo
 func (p *GRPCPool) Start() error {
 	lis, err := net.Listen("tcp", p.addr)
 	if err != nil {
-		log.Fatalf("start service FAIL!, ip = %s", p.addr)
+		log.Fatalf("start service FAIL!, ip = %s, error: %s", p.addr, err.Error())
 	}
 	if p.grpcServer == nil {
 		p.grpcServer = grpc.NewServer()
@@ -94,4 +102,29 @@ func (p *GRPCPool) Start() error {
 
 func (p *GRPCPool) Stop() {
 	p.grpcServer.GracefulStop()
+}
+
+func (p *GRPCPool) SetPeers(peers ...string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.peers = consistenthash.New(defaultReplicas, nil)
+	p.peers.Add(peers...)
+	if p.client == nil {
+		p.client = make(map[string]*client)
+	}
+	// 创建客户端
+	for _, peer := range peers {
+		p.client[peer] = &client{name: peer + p.addr}
+	}
+}
+
+func (p *GRPCPool) PickPeer(key string) (PeerGetter, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	log.Printf("PickPeer %s", p.peers.Get(key))
+	if peer := p.peers.Get(key); peer != "" && peer != p.addr {
+		log.Printf("Pick peer: %s", peer)
+		return p.client[peer], true
+	}
+	return nil, false
 }

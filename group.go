@@ -4,6 +4,7 @@ import (
 	"sync"
 	"log"
 	"fmt"
+	pb "my_groupcache/cachepb"
 )
 
 // 回调函数
@@ -18,11 +19,13 @@ func (f GetterFunc) Get(key string) (bytes []byte, err error) {
 	return f(key)
 }
 
+// TODO single-flight
 // A Group is a cache namespace and associated data loaded spread over
 type Group struct {
 	name      string
 	getter    Getter
 	mainCache cache
+	peers PeerPicker
 }
 
 var (
@@ -55,12 +58,20 @@ func GetGroup(name string) *Group {
 	return g
 }
 
+// RegisterPeers registers a PeerPicker for choosing remote peer
+func (g *Group) RegisterPeers(peers PeerPicker) {
+	if g.peers != nil {
+		panic("RegisterPeerPicker called more than once")
+	}
+	g.peers = peers
+}
+
 // Get value for a key from cache
 func (g *Group) Get(key string) (ByteView, error) {
 	if key == "" {
 		return ByteView{}, fmt.Errorf("key is required")
 	}
-
+	// 本地调用
 	if v, ok := g.mainCache.get(key); ok {
 		log.Println("[GeeCache] hit")
 		return v, nil
@@ -69,8 +80,34 @@ func (g *Group) Get(key string) (ByteView, error) {
 	return g.load(key)
 }
 
+// 改造为调用远程结点 + 本地调用
 func (g *Group) load(key string) (value ByteView, err error) {
+	if g.peers != nil {
+		// pick peer
+		// log.Println(g.peers)
+		// log.Println(g.peers.PickPeer(key))
+		if peer, ok := g.peers.PickPeer(key); ok {
+			if value, err := g.getFromPeer(peer, key); err == nil {
+				log.Printf("Remote peers from %s", g.name)
+				return value, nil
+			}
+		}
+	}
 	return g.getLocally(key)
+}
+
+func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
+	// 调用客户端的Get
+	request := &pb.Request{
+		Group: g.name,
+		Key: key,
+	}
+	response := &pb.Response{}
+	err := peer.Get(request, response)
+	if err != nil {
+		return ByteView{}, fmt.Errorf("Error: %s", err.Error())
+	}
+	return ByteView{b: response.Value}, nil
 }
 
 func (g *Group) getLocally(key string) (ByteView, error) {
@@ -81,6 +118,7 @@ func (g *Group) getLocally(key string) (ByteView, error) {
 	}
 	value := ByteView{b: cloneBytes(bytes)}
 	g.populateCache(key, value)
+	log.Print("From db!")
 	return value, nil
 }
 
