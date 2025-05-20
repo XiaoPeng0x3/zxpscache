@@ -1,10 +1,11 @@
 package mygroupcache
 
 import (
-	"sync"
-	"log"
 	"fmt"
+	"log"
 	pb "my_groupcache/cachepb"
+	"my_groupcache/singleflight"
+	"sync"
 )
 
 // 回调函数
@@ -26,6 +27,8 @@ type Group struct {
 	getter    Getter
 	mainCache cache
 	peers PeerPicker
+	// singleflight
+	loader *singleflight.Group
 }
 
 var (
@@ -44,6 +47,7 @@ func NewGroup(name string, maxBytes int, getter Getter) *Group {
 		name:      name,
 		getter:    getter,
 		mainCache: cache{maxBytes: maxBytes},
+		loader: &singleflight.Group{},
 	}
 	groups[name] = g
 	return g
@@ -82,18 +86,25 @@ func (g *Group) Get(key string) (ByteView, error) {
 
 // 改造为调用远程结点 + 本地调用
 func (g *Group) load(key string) (value ByteView, err error) {
-	if g.peers != nil {
-		// pick peer
-		// log.Println(g.peers)
-		// log.Println(g.peers.PickPeer(key))
-		if peer, ok := g.peers.PickPeer(key); ok {
-			if value, err := g.getFromPeer(peer, key); err == nil {
-				log.Printf("Remote peers from %s", g.name)
-				return value, nil
+	viewi, err := g.loader.Do(key, func() (interface{}, error) {
+		if g.peers != nil {
+			// pick peer
+			// log.Println(g.peers)
+			// log.Println(g.peers.PickPeer(key))
+			if peer, ok := g.peers.PickPeer(key); ok {
+				if value, err := g.getFromPeer(peer, key); err == nil {
+					log.Printf("Remote peers from %s", g.name)
+					return value, nil
+				}
 			}
 		}
+		return g.getLocally(key)
+	})
+	
+	if err == nil {
+		return viewi.(ByteView), nil
 	}
-	return g.getLocally(key)
+	return
 }
 
 func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
