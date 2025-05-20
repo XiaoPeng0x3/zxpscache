@@ -121,9 +121,10 @@ func (p *GRPCPool) SetPeers(peers ...string) {
 func (p *GRPCPool) PickPeer(key string) (PeerGetter, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	log.Printf("PickPeer %s", p.peers.Get(key))
+	//log.Printf("PickPeer %s", p.peers.Get(key))
 	if peer := p.peers.Get(key); peer != "" && peer != p.addr {
-		log.Printf("Pick peer: %s", peer)
+		log.Printf("[Server: %s] : Pick Peer %s", p.addr, peer)
+		// log.Printf("Pick peer: %s", peer)
 		return p.client[peer], true
 	}
 	return nil, false
