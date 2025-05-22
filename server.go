@@ -10,9 +10,6 @@ import (
 	"my_groupcache/consistenthash"
 	"net"
 	"sync"
-
-	"time"
-
 	"google.golang.org/grpc"
 )
 
@@ -27,29 +24,8 @@ type GRPCPool struct {
 }
 
 const (
-	defaultAddr     = "127.0.0.1:8090"
 	defaultReplicas = 50
 )
-
-// ServerOptions 服务器配置选项
-type ServerOptions struct {
-	EtcdEndpoints []string      // etcd端点
-	DialTimeout   time.Duration // 连接超时
-	MaxMsgSize    int           // 最大消息大小
-	TLS           bool          // 是否启用TLS
-	CertFile      string        // 证书文件
-	KeyFile       string        // 密钥文件
-}
-
-// DefaultServerOptions 默认配置
-var DefaultServerOptions = &ServerOptions{
-	EtcdEndpoints: []string{"localhost:2379"},
-	DialTimeout:   5 * time.Second,
-	MaxMsgSize:    4 << 20, // 4MB
-}
-
-// ServerOption 定义选项函数类型
-type ServerOption func(*ServerOptions)
 
 func NewGRPCPool(addr string, svcName string) *GRPCPool {
 	return &GRPCPool{
