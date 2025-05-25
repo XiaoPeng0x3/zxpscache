@@ -3,6 +3,7 @@ package consistenthash
 
 import (
 	"hash/crc32"
+	"log"
 	"sort"
 	"strconv"
 	"sync"
@@ -59,7 +60,8 @@ func (m *Map) Get(key string) string {
 	idx := sort.Search(len(m.keys), func(i int) bool {
 		return m.keys[i] >= hash
 	})
-
+	s := m.hashMap[m.keys[idx%len(m.keys)]]
+	log.Printf("选择结点为: %s", s)
 	return m.hashMap[m.keys[idx%len(m.keys)]]
 }
 

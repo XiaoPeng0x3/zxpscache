@@ -89,11 +89,11 @@ func (g *Group) load(key string) (value ByteView, err error) {
 	viewi, err := g.loader.Do(key, func() (interface{}, error) {
 		if g.peers != nil {
 			// pick peer
-			// log.Println(g.peers)
 			// log.Println(g.peers.PickPeer(key))
 			if peer, ok := g.peers.PickPeer(key); ok {
+				log.Printf("Client= %v\n", peer)
 				if value, err := g.getFromPeer(peer, key); err == nil {
-					log.Printf("Remote peers from %s", g.name)
+					log.Printf("Remote peers from %s\n", g.name)
 					return value, nil
 				}
 			}
@@ -114,8 +114,12 @@ func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
 		Key: key,
 	}
 	response := &pb.Response{}
+	if peer == nil {
+		log.Println("peer is nil")
+	}
 	err := peer.Get(request, response)
 	if err != nil {
+		log.Fatal(err.Error())
 		return ByteView{}, fmt.Errorf("Error: %s", err.Error())
 	}
 	return ByteView{b: response.Value}, nil

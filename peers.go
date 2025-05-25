@@ -14,3 +14,12 @@ type PeerPicker interface {
 type PeerGetter interface {
 	Get(in *pb.Request, out *pb.Response) error
 }
+
+var portPicker PeerPicker
+
+func RegisterPeerPicker(p PeerPicker) {
+	// if portPicker != nil {
+	// 	panic("RegisterPeerPicker called more than once")
+	// }
+	portPicker = p
+}
